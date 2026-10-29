@@ -1,3 +1,0 @@
-# Runtime: Python 3.12 with Tkinter (installed by conda's tk package).
-# Development dependency for automated integration and GUI tests:
-pytest==8.3.5
