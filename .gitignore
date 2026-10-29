@@ -1,0 +1,16 @@
+__pycache__/
+.pytest_cache/
+.conda/
+.conda-pkgs/
+.conda-envs/
+tmp/
+output/
+.DS_Store
+# Real local student credentials and enrolment records.
+students.data
+*.data
+.env
+.env.*
+!.env.example
+# Local analysis/design reference; publish the application source and setup docs.
+group 7_Cmp1 08 (1).pdf

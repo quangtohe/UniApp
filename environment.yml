@@ -1,0 +1,17 @@
+# Portable demo login (automatically created by --demo):
+# Email: preview@university.com
+# Password: Abcde123
+# Run GUI: python main.py --gui --demo
+# Run CLI: python main.py --demo
+# --demo uses demo.data and leaves students.data unchanged.
+# Starting --demo restores the public demo password while keeping enrolments.
+# These comments document the demo; conda only reads the environment below.
+name: uniapp-group7
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pip
+  - tk
+  - pip:
+      - -r requirement.txt
