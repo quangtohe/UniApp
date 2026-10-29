@@ -4,13 +4,17 @@
 
 ## Setup nhanh sau khi clone hoặc tải ZIP từ GitHub
 
-Cài Miniconda/Anaconda trước, sau đó mở terminal có lệnh conda tại thư mục chứa `main.py` và `environment.yml`:
+Cài Miniconda/Anaconda và Git trước, sau đó clone repository và tạo môi trường. Repo riêng tư yêu cầu tài khoản GitHub có quyền truy cập:
 
 ```powershell
+git clone https://github.com/quangtohe/UniApp.git
+cd UniApp
 conda env create -f environment.yml
 conda activate uniapp-group7
 python main.py --gui --demo
 ```
+
+Nếu tải ZIP, giải nén rồi mở terminal tại thư mục chứa `main.py` và `environment.yml`, bắt đầu từ lệnh `conda env create`.
 
 Bấm **Sign in** với tài khoản demo đã được điền sẵn: `preview@university.com` / `Abcde123`. Chế độ demo tự tạo `demo.data`; không cần file dữ liệu được tải từ GitHub.
 
