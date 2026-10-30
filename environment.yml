@@ -1,0 +1,13 @@
+# Demo GUI: python main.py --gui --demo
+# Demo credentials: preview@university.com / Abcde123
+# Admin demo GUI: python main.py --gui --admin --demo
+# Separate admin demo: admin@university.com / Admin123
+name: uniapp-group7
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pip
+  - tk
+  - pip:
+      - -r requirement.txt

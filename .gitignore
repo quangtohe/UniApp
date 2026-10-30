@@ -1,0 +1,13 @@
+__pycache__/
+.pytest_cache/
+.conda/
+.conda-pkgs/
+.conda-envs/
+tmp/
+output/
+.DS_Store
+*.data
+.env
+.env.*
+!.env.example
+group 7_Cmp1 08 (1).pdf

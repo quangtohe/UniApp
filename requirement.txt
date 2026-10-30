@@ -1,0 +1,3 @@
+# Application runtime uses Python's standard library and conda's tk package.
+# pytest is used for Member 4 integration tests.
+pytest==8.3.5
