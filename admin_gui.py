@@ -9,9 +9,11 @@ from gui_uni_app import PortalTheme, PortalSidebar
 
 
 class AdminConfirmationWindow(tk.Toplevel):
-    """Make account removal and clearing records explicit, cancellable GUI actions."""
+    ## """Make account removal and clearing records explicit, cancellable GUI actions."""
+    """Confirm account, enrolment or clear actions with a cancellable shared dialog."""
 
-    def __init__(self, parent, application, title, message, action, phrase=None):
+    ## def __init__(self, parent, application, title, message, action, phrase=None):
+    def __init__(self, parent, application, title, message, action, phrase=None, confirm_text=None):
         """Build a confirmation message, optional typed phrase and cancel/confirm buttons."""
         super().__init__(parent)
         self.withdraw()
@@ -40,7 +42,8 @@ class AdminConfirmationWindow(tk.Toplevel):
         buttons.pack(side="bottom", fill="x", pady=(20, 0))
         self.cancel_button = ttk.Button(buttons, text="Cancel", command=application.close_confirmation_window, style="Secondary.TButton")
         self.cancel_button.pack(side="right", padx=(12, 0))
-        self.confirm_button = ttk.Button(buttons, text="Clear all records" if phrase else "Remove student", command=self.confirm, style="Danger.TButton")
+        ## self.confirm_button = ttk.Button(buttons, text="Clear all records" if phrase else "Remove student", command=self.confirm, style="Danger.TButton")
+        self.confirm_button = ttk.Button(buttons, text=confirm_text or ("Clear all records" if phrase else "Remove student"), command=self.confirm, style="Danger.TButton")
         self.confirm_button.pack(side="right")
         if phrase:
             self.confirm_button.configure(state="disabled")

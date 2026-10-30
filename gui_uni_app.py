@@ -3,6 +3,7 @@
 
 import tkinter as tk
 from tkinter import ttk
+from functools import partial
 
 from database import Database, DatabaseError
 from gui_controller import GUIController
@@ -359,7 +360,9 @@ class SubjectWindow(tk.Toplevel):
         table_frame.grid(row=3, column=0, sticky="nsew")
         table_frame.columnconfigure(0, weight=1)
         table_frame.rowconfigure(0, weight=1)
-        self.tree = ttk.Treeview(table_frame, columns=("id", "mark", "grade"), show="headings", height=5, style="Portal.Treeview")
+        ## self.tree = ttk.Treeview(table_frame, columns=("id", "mark", "grade"), show="headings", height=5, style="Portal.Treeview")
+        self.tree = ttk.Treeview(table_frame, columns=("id", "mark", "grade"), show="headings", height=5, selectmode="browse", style="Portal.Treeview")
+        self.tree.bind("<<TreeviewSelect>>", self._selection_changed)
         for column, title in (("id", "SUBJECT ID"), ("mark", "MARK / 100"), ("grade", "GRADE")):
             self.tree.heading(column, text=title, anchor="center")
             self.tree.column(column, width=180, minwidth=100, anchor="center")
@@ -376,12 +379,28 @@ class SubjectWindow(tk.Toplevel):
         buttons.grid(row=4, column=0, sticky="ew", pady=(20, 0))
         ttk.Button(buttons, text="Refresh results", command=application.refresh_subjects, style="Link.TButton").pack(side="left")
         ttk.Button(buttons, text="Back to overview", command=application.close_subject_window, style="Secondary.TButton").pack(side="right")
+        self.remove_button = ttk.Button(buttons, text="Remove selected subject", command=application.request_subject_removal,
+                                        style="Danger.TButton", state="disabled")
+        self.remove_button.pack(side="right", padx=(0, 12))
+
+    def selected_subject_id(self):
+        """Return the selected enrolment ID, or None when no table row is selected."""
+        selection = self.tree.selection()
+        if not selection:
+            return None
+        return int(self.tree.item(selection[0], "values")[0])
+
+    def _selection_changed(self, event=None):
+        """Allow removal only while a single enrolled subject is selected."""
+        self.remove_button.configure(state="normal" if self.selected_subject_id() is not None else "disabled")
 
     def update_subjects(self, subjects):
         """Replace rows with the current records and display a helpful empty state."""
         self.tree.delete(*self.tree.get_children())
         for index, subject in enumerate(subjects):
-            self.tree.insert("", "end", values=(f"{subject.subject_id:03d}", subject.mark, str(subject.grade)), tags=("even" if index % 2 == 0 else "odd",))
+            ## self.tree.insert("", "end", values=(f"{subject.subject_id:03d}", subject.mark, str(subject.grade)), tags=("even" if index % 2 == 0 else "odd",))
+            self.tree.insert("", "end", iid=f"subject:{subject.subject_id}", values=(f"{subject.subject_id:03d}", subject.mark, str(subject.grade)), tags=("even" if index % 2 == 0 else "odd",))
+        self.remove_button.configure(state="disabled")
         if subjects:
             self.empty_label.place_forget()
             self.status_var.set(f"{len(subjects)} enrolled subjects  ·  Your latest marks and grades")
@@ -613,15 +632,19 @@ class GUIUniApp:
             return self.registration_window
         if self.admin_window is not None:
             return self.admin_window
+        if self.subject_window is not None:
+            return self.subject_window
         return self.enrolment_window if self.enrolment_window is not None else self.root
 
-    def request_confirmation(self, title, message, action, phrase=None):
+    ## def request_confirmation(self, title, message, action, phrase=None):
+    def request_confirmation(self, title, message, action, phrase=None, confirm_text=None):
         """Present an explicit confirmation owned by the current workspace."""
         from admin_gui import AdminConfirmationWindow
 
         self.close_exception_window()
         self.close_confirmation_window()
-        self.confirmation_window = AdminConfirmationWindow(self._active_window(), self, title, message, action, phrase)
+        ## self.confirmation_window = AdminConfirmationWindow(self._active_window(), self, title, message, action, phrase)
+        self.confirmation_window = AdminConfirmationWindow(self._active_window(), self, title, message, action, phrase, confirm_text)
         self._present_window(self.confirmation_window)
         if self.visible:
             self.confirmation_window.wait_visibility()
@@ -693,9 +716,42 @@ class GUIUniApp:
             return False
         return self.refresh_subjects()
 
+    def request_subject_removal(self):
+        """Ask the signed-in student to confirm removal of the selected enrolment."""
+        if self.current_student is None or self.subject_window is None:
+            self.display_error("Please sign in and open your subjects before removing a subject.")
+            return False
+        subject_id = self.subject_window.selected_subject_id()
+        if subject_id is None:
+            self.display_error("Select an enrolled subject to remove.")
+            return False
+        self.request_confirmation("Remove subject?",
+                                  f"Subject {subject_id:03d} and its result will be removed from your enrolments. You can enrol in another subject afterwards.",
+                                  partial(self._remove_subject_confirmed, self.current_student.student_id, subject_id),
+                                  confirm_text="Remove subject")
+        return True
+
+    def _remove_subject_confirmed(self, student_id, subject_id):
+        """Persist a confirmed removal for the same session, then refresh all student views."""
+        if self.current_student is None or self.current_student.student_id != student_id:
+            self.display_error("Please sign in again before removing a subject.")
+            return False
+        try:
+            self.subject_system.remove_subject(self.current_student, subject_id)
+        except (ValueError, DatabaseError) as error:
+            self.display_error(str(error))
+            return False
+        if not self.refresh_subjects():
+            return False
+        if self.subject_window is not None:
+            self.subject_window.status_var.set(f"Subject {subject_id:03d} removed. {len(self.current_student.subjects)} enrolled subjects remaining.")
+        return True
+
     def close_subject_window(self):
         """Close the results window while preserving the current student session."""
         if self.subject_window is not None:
+            self.close_confirmation_window()
+            self.close_exception_window()
             self.subject_window.destroy()
             self.subject_window = None
 

@@ -86,6 +86,23 @@ class GUIController:
         student.subjects = list(updated.subjects)
         return additions[0]
 
+    def remove_subject(self, student, subject_id):
+        """Remove a current enrolment using the model and update the session only after saving."""
+        current = self._latest_student(student)
+        selected = next((subject for subject in current.subjects if subject.subject_id == subject_id), None)
+        if selected is None:
+            raise ValueError("Subject is no longer enrolled. Refresh your subjects and try again.")
+        previous_count = len(current.subjects)
+        if not current.remove_subject(selected):
+            raise ValueError("The selected subject could not be removed.")
+        with redirect_stdout(StringIO()):
+            self.subject_controller.save_student(current)
+        updated = self._latest_student(student)
+        if len(updated.subjects) != previous_count - 1 or any(subject.subject_id == subject_id for subject in updated.subjects):
+            raise ValueError("Subject removal could not be saved. Please try again.")
+        student.subjects = list(updated.subjects)
+        return selected
+
     @staticmethod
     def summary(student):
         """Use Member 3's calculations to present the original model's current results."""

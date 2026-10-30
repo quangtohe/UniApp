@@ -293,3 +293,149 @@ def test_registration_is_available_only_for_signed_out_students(gui, student):
     sign_in(gui, student)
     assert not gui.show_registration_window()
     assert not gui.register_student()
+
+
+@pytest.fixture
+def removal_gui(gui, database, student):
+    """Open the real Subjects window with three known results for removal tests."""
+    from subject import Subject
+
+    for subject_id, mark in ((101, 60), (202, 65), (303, 90)):
+        subject = Subject()
+        subject.subject_id, subject.mark = subject_id, mark
+        subject.grade = subject.calculate_grade()
+        student.subjects.append(subject)
+    database.write_students([student])
+    sign_in(gui, student)
+    gui.show_subject_window()
+    return gui
+
+
+def select_subject(gui, subject_id):
+    """Select an actual subject row and update the removal button's state."""
+    gui.subject_table.selection_set(f"subject:{subject_id}")
+    gui.subject_window._selection_changed()
+
+
+def test_subject_removal_requires_a_selected_row(removal_gui):
+    """Keep the removal button disabled until an enrolled row is selected."""
+    assert removal_gui.subject_window.remove_button.instate(["disabled"])
+    assert not removal_gui.request_subject_removal()
+    assert "Select an enrolled subject" in removal_gui.exception_window.message_var.get()
+    assert removal_gui.exception_window.master is removal_gui.subject_window
+    removal_gui.exception_window.ok_button.invoke()
+    select_subject(removal_gui, 202)
+    assert removal_gui.subject_window.remove_button.instate(["!disabled"])
+
+
+def test_subject_removal_cancel_confirm_refresh_and_relogin(removal_gui, database, student):
+    """Cancel must keep the file; confirmation removes the selected row and updates metrics."""
+    gui = removal_gui
+    original = database.filename.read_bytes()
+    select_subject(gui, 202)
+    gui.subject_window.remove_button.invoke()
+    assert gui.confirmation_window.master is gui.subject_window
+    assert gui.confirmation_window.confirm_button.cget("text") == "Remove subject"
+    gui.confirmation_window.cancel_button.invoke()
+    assert database.filename.read_bytes() == original
+    assert len(gui.subject_table.get_children()) == 3
+    assert gui.enrolment_window.average_value_var.get() == "71.67"
+    gui.subject_window.remove_button.invoke()
+    gui.confirmation_window.confirm_button.invoke()
+    assert gui.confirmation_window is None
+    assert gui.subject_table.get_children() == ("subject:101", "subject:303")
+    assert gui.enrolment_window.enrolled_value_var.get() == "2 / 4"
+    assert gui.enrolment_window.average_value_var.get() == "75.00"
+    assert gui.enrolment_window.grade_value_var.get() == "D"
+    assert "202 removed" in gui.subject_window.status_var.get()
+    assert gui.subject_window.remove_button.instate(["disabled"])
+    gui.show_login_window()
+    sign_in(gui, student)
+    gui.show_subject_window()
+    assert gui.subject_table.get_children() == ("subject:101", "subject:303")
+
+
+def test_remove_last_subject_shows_empty_state_and_allows_enrolment(removal_gui):
+    """Removing the final row resets results and frees places for new enrolment."""
+    gui = removal_gui
+    for subject_id in (101, 202, 303):
+        select_subject(gui, subject_id)
+        gui.subject_window.remove_button.invoke()
+        gui.confirmation_window.confirm_button.invoke()
+    assert not gui.subject_table.get_children()
+    assert gui.enrolment_window.enrolled_value_var.get() == "0 / 4"
+    assert gui.enrolment_window.average_value_var.get() == "—"
+    assert gui.enrolment_window.grade_value_var.get() == "—"
+    assert gui.subject_window.remove_button.instate(["disabled"])
+    assert gui.subject_window.empty_label.place_info()
+    gui.enrol_button.invoke()
+    assert len(gui.subject_table.get_children()) == 1
+
+
+def test_subject_removal_write_error_preserves_visible_rows(removal_gui, database, monkeypatch):
+    """Show storage failure in the Subjects view without hiding a row or changing metrics."""
+    from database import DatabaseError
+
+    gui = removal_gui
+    original = database.filename.read_bytes()
+
+    def fail_write(students):
+        """Simulate failure while saving a confirmed subject removal."""
+        raise DatabaseError("Cannot save subject removal")
+
+    monkeypatch.setattr(database, "write_students", fail_write)
+    select_subject(gui, 202)
+    gui.subject_window.remove_button.invoke()
+    gui.confirmation_window.confirm_button.invoke()
+    assert "Cannot save" in gui.exception_window.message_var.get()
+    assert gui.exception_window.master is gui.subject_window
+    assert gui.subject_table.get_children() == ("subject:101", "subject:202", "subject:303")
+    assert gui.enrolment_window.enrolled_value_var.get() == "3 / 4"
+    assert len(gui.current_student.subjects) == 3 and database.filename.read_bytes() == original
+
+
+def test_subject_removed_elsewhere_is_rechecked_at_confirmation(removal_gui, database):
+    """A pending removal must not delete another row if its selected subject has disappeared."""
+    gui = removal_gui
+    select_subject(gui, 202)
+    gui.subject_window.remove_button.invoke()
+    records = database.read_students()
+    records[0].subjects = [subject for subject in records[0].subjects if subject.subject_id != 202]
+    database.write_students(records)
+    original = database.filename.read_bytes()
+    gui.confirmation_window.confirm_button.invoke()
+    assert "no longer enrolled" in gui.exception_window.message_var.get()
+    assert database.filename.read_bytes() == original
+    gui.exception_window.ok_button.invoke()
+    gui.refresh_subjects()
+    assert gui.subject_table.get_children() == ("subject:101", "subject:303")
+
+
+def test_logout_cancels_pending_subject_removal_and_old_session_callback(removal_gui, database):
+    """A closed confirmation must not remove another student's enrolment after login changes."""
+    gui = removal_gui
+    select_subject(gui, 202)
+    gui.subject_window.remove_button.invoke()
+    action = gui.confirmation_window.action
+    original = database.filename.read_bytes()
+    gui.show_login_window()
+    assert gui.confirmation_window is None and gui.subject_window is None
+    assert database.filename.read_bytes() == original
+    other = gui.portal.register_student("Other Student", "other@university.com", "Abcde123", "Abcde123")
+    sign_in(gui, other)
+    before_old_action = database.filename.read_bytes()
+    assert not action()
+    assert "sign in again" in gui.exception_window.message_var.get()
+    assert database.filename.read_bytes() == before_old_action
+    assert len(database.read_students()[0].subjects) == 3
+
+
+def test_closing_subjects_cancels_pending_removal(removal_gui, database):
+    """Closing the owner window must close its confirmation without saving changes."""
+    gui = removal_gui
+    select_subject(gui, 202)
+    gui.subject_window.remove_button.invoke()
+    original = database.filename.read_bytes()
+    gui.close_subject_window()
+    assert gui.subject_window is None and gui.confirmation_window is None
+    assert database.filename.read_bytes() == original

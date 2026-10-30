@@ -18,7 +18,7 @@ Phần triển khai Member 4 trên code gốc của Group 7: **University Menu +
 | `tests/` | Kiểm thử Database, các kết nối giữa module, CLI qua stdin và widget Tkinter thật |
 | `environment.yml`, `requirement.txt` | Môi trường conda và package cho kiểm thử |
 
-**Giữ nguyên nội dung** `student.py`, `subject.py`, `student_controller.py`, `subject_controller.py` và `admin_controller.py` của Members 1-3. Không khôi phục các bản đã sửa toàn bộ nghiệp vụ trước đây.
+**Giữ nguyên nội dung** `subject.py`, `student_controller.py`, `subject_controller.py` và `admin_controller.py` của Members 1-3. Trong `student.py`, đã sửa `remove_subject()` để xoá đúng ID được chọn thay vì luôn xoá môn đầu tiên; đoạn hàm cũ được giữ bằng comment `##`. Không khôi phục các bản đã sửa toàn bộ nghiệp vụ trước đây.
 
 Code gốc của `main.py` và `database.py` được giữ ở cuối file bằng comment `##`. Các class/function của Member 4 có docstring mô tả chức năng.
 
@@ -181,13 +181,22 @@ Admin clear vẫn yêu cầu gõ `CLEAR`, theo code Member 3 đang có. Trả v�
 
 1. **Login:** Tk root chứa LoginView, email/password, nút Sign in và Show password.
 2. **Enrolment:** Toplevel hiển thị tên/ID, số môn, average, overall grade; có Enrol, View subjects, Refresh overview và Log out.
-3. **Subjects:** Toplevel riêng hiển thị Subject ID/Mark/Grade; có empty state khi chưa có môn và Back to overview.
+3. **Subjects:** Toplevel riêng hiển thị Subject ID/Mark/Grade; chọn một dòng để bật **Remove selected subject**, có xác nhận trước khi xoá, empty state khi chưa có môn và Back to overview.
 4. **Exception:** Toplevel báo lỗi thiếu trường, format sai, credentials sai, enrol quá 4 môn hoặc lỗi đọc/ghi file. Got it/Enter/Escape đóng thông báo.
 5. **Admin:** Toplevel riêng quản lý sinh viên, tìm kiếm và nhóm kết quả; chỉ mở sau khi xác thực Admin.
-6. **Confirmation:** Toplevel xác nhận xoá một sinh viên hoặc clear; clear yêu cầu nhập `CLEAR`.
+6. **Confirmation:** Toplevel xác nhận xoá môn, xoá một sinh viên hoặc clear; clear yêu cầu nhập `CLEAR`.
 7. **Registration:** Toplevel đăng ký Student; xác nhận password, kiểm tra email trùng và chuyển về Login sau khi lưu thành công.
 
 Nút Enrol vẫn nhận lần bấm thứ năm để hiển thị Exception window; dữ liệu không có môn thứ năm. Logout đóng các cửa sổ con, xoá credentials và đưa password về chế độ ẩn.
+
+### Xoá môn trong GUI
+
+1. Đăng nhập Student, bấm **View subjects**.
+2. Chọn đúng dòng môn cần xoá, rồi bấm **Remove selected subject**.
+3. Hộp thoại ghi rõ Subject ID; **Cancel** hoặc Escape huỷ thao tác, **Remove subject** xác nhận xoá.
+4. Sau khi lưu thành công, bảng môn, số môn, average và grade được cập nhật. Xoá môn cuối cùng đưa tài khoản về trạng thái chưa có điểm và cho phép enrol lại.
+
+Khi chưa chọn dòng hoặc danh sách rỗng, nút xoá bị vô hiệu hoá. Nếu lưu thất bại, GUI báo lỗi và giữ nguyên môn trong phiên hiện tại. Trước khi xoá, hệ thống đọc lại dữ liệu để kiểm tra môn và Student vẫn tồn tại. Đóng Subjects hoặc logout sẽ huỷ hộp thoại chưa xác nhận. Tài khoản Admin và các sinh viên khác không bị thay đổi khi Student xoá môn của mình.
 
 Tkinter chỉ dùng một Tk root và một mainloop. Các cửa sổ khác kế thừa Toplevel. Màu/font/style tập trung trong PortalTheme; PortalSidebar dùng chung cho login và overview. Mỗi container dùng một geometry manager.
 
@@ -199,6 +208,7 @@ GUI cần nhận dữ liệu và exception, trong khi các hàm gốc của Memb
 
 - `authenticate()` dùng `validate_email()`/`validate_password()` của StudentController rồi đọc Student objects từ file.
 - `enrol_subject()` lấy sinh viên mới nhất, kiểm tra giới hạn, gọi `SubjectController.enrol_subject()` gốc và đọc lại kết quả sau khi lưu. Output CLI của lời gọi này được giữ khỏi cửa sổ GUI.
+- `remove_subject()` đọc lại Student, tìm đúng ID, gọi hàm model đã sửa và `SubjectController.save_student()`, rồi xác minh kết quả lưu trước khi cập nhật phiên GUI.
 - `view_enrolment()` đọc lại danh sách môn để giao diện không dùng dữ liệu cũ.
 - `summary()` dùng `AdminController.average_mark()` và `grade_from_average()` hiện có để hiển thị kết quả nhất quán với admin.
 
@@ -220,22 +230,22 @@ GUI cần nhận dữ liệu và exception, trong khi các hàm gốc của Memb
 python -m pytest -q --basetemp=tmp/pytest
 ```
 
-Đã xác minh **69 passed, 0 skipped**. Các test dùng file tạm và không sử dụng database chính. Test GUI dùng một Tk interpreter, giữ cửa sổ ẩn; nếu máy không có display, cần kiểm tra GUI lại trên máy có giao diện.
+Đã xác minh **90 passed, 0 skipped**. Các test dùng file tạm và không sử dụng database chính. Test GUI dùng một Tk interpreter, giữ cửa sổ ẩn; nếu máy không có display, cần kiểm tra GUI lại trên máy có giao diện.
 
 | File test | Nội dung |
 | --- | --- |
 | `tests/test_member4_integration.py` | Tương thích pickle gốc, file lỗi, lỗi lưu atomic, cùng file cho controller lồng nhau, đăng ký CLI/login GUI, enrol bằng Member 2, average bằng Member 3, account bị xoá, CLI stdin, demo và option startup |
-| `tests/test_member4_gui.py` | Luồng Student, phân biệt vai trò Admin/Student, bảng Admin/tìm kiếm/nhóm, huỷ và xác nhận xoá, clear theo phrase, logout thu hồi quyền |
+| `tests/test_member4_gui.py` | Luồng Student, đăng ký, Admin, chọn/huỷ/xác nhận xoá môn, cập nhật chỉ số, lỗi lưu, dữ liệu cũ và logout huỷ thao tác chờ |
 | `tests/test_admin_gui_controller.py` | Quyền Admin, tài khoản riêng, cấu hình demo/thật, ranh giới điểm, PASS/FAIL, tìm kiếm, xoá chính xác, clear và startup flags |
 | `tests/test_gui_registration.py` | Validation đăng ký, email trùng, giữ password/enrolments cũ, ID duy nhất, đăng nhập CLI/Admin đọc được account mới và lỗi lưu |
+| `tests/test_subject_removal.py` | Model/CLI xoá đúng môn, adapter GUI đọc dữ liệu mới, giữ nguyên tài khoản khác, lỗi lưu không đổi phiên và xoá hết rồi enrol lại |
 | `tests/conftest.py` | Tạo database riêng cho từng test và đăng ký sinh viên qua code Member 1 gốc |
 
 ## Điểm cần phối hợp với Members 1-3
 
-Phần Member 4 giữ nguyên nghiệp vụ gốc. Hai lỗi đã quan sát cần Member 2 xử lý trong phần của mình:
+Đã sửa lỗi `Student.remove_subject()` so sánh một subject với chính nó: dùng biến lặp riêng và đối chiếu với ID môn được yêu cầu. CLI chọn `3. Remove a subject` và GUI chọn **Remove selected subject** đều lưu danh sách sau khi xoá đúng môn.
 
-- `Student.remove_subject()` đang so sánh một subject với chính nó nên có thể xoá môn đầu tiên thay vì ID đã chọn.
-- Luồng đổi password gốc chưa kiểm tra format hoặc confirmation. Password không hợp lệ được lưu có thể không qua validation khi đăng nhập sau đó.
+Luồng đổi password gốc chưa kiểm tra format hoặc confirmation. Password không hợp lệ được lưu có thể không qua validation khi đăng nhập sau đó; phần này cần phối hợp với Member 2.
 
 Các submenu Subject/Admin vẫn dùng số; nhóm có thể phối hợp đổi wording/phím cho khớp hoàn toàn sample I/O của đề. Các kiểm thử Member 4 ở đây xác minh tích hợp với API hiện có, không khẳng định toàn bộ nghiệp vụ của Members 1-3 đã hoàn tất.
 
